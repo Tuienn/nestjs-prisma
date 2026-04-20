@@ -11,13 +11,21 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  private readonly logger = new Logger('Prisma');
+
   async onModuleInit() {
-    await this.$connect();
-    Logger.log('Connected to the database');
+    try {
+      await this.$connect();
+      await this.$runCommandRaw({ ping: 1 }); // Kiểm tra kết nối MongoDB
+      this.logger.log('[DB] 🚀 Connected to database');
+    } catch (error) {
+      this.logger.error('[DB] ❌ Failed to connect', error);
+      throw error; // NestJS dừng app
+    }
   }
 
   async onModuleDestroy() {
     await this.$disconnect();
-    Logger.log('Disconnected from the database');
+    this.logger.warn('[DB] 🔌 Disconnected from database');
   }
 }

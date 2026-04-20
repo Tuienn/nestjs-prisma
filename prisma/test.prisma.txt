@@ -1,0 +1,398 @@
+// ============================================================
+// PRISMA SCHEMA - ĐÁP ÁN CHỮA 8 BÀI TẬP
+// Provider: MongoDB
+// ============================================================
+
+datasource db {
+   provider = "mongodb"
+   url      = env("DATABASE_URL")
+ }
+
+generator client {
+   provider = "prisma-client-js"
+}
+
+
+// ============================================================
+// BÀI 1 — QUẢN LÝ SINH VIÊN
+// Điểm gốc: 7/10
+// Lỗi: thiếu @default cho isStudying, thiếu timestamps, tên dob khó đọc
+// ============================================================
+
+model Student {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  fullName    String
+  email       String   @unique
+  dateOfBirth DateTime // ✅ Đổi từ "dob" → rõ nghĩa hơn
+  gpa         Float
+  isStudying  Boolean  @default(true) // ✅ Thêm @default
+  createdAt   DateTime @default(now()) // ✅ Thêm timestamps
+  updatedAt   DateTime @updatedAt
+
+  @@index([gpa]) // ✅ Thường sort/filter theo GPA
+}
+
+
+// ============================================================
+// BÀI 2 — TODO APP
+// Điểm gốc: 6.5/10
+// Lỗi: typo "createAt/updateAt", tên enum L_1..L_5 mờ nghĩa
+// ============================================================
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskPriority {
+  VERY_LOW  // ✅ Đổi từ L_1 → có nghĩa rõ ràng
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Task {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM) // ✅ Đổi default từ L_3 → MEDIUM
+  createdAt   DateTime     @default(now()) // ✅ Sửa typo "createAt"
+  updatedAt   DateTime     @updatedAt      // ✅ Sửa typo "updateAt"
+
+  @@index([status])   // ✅ Thêm index
+  @@index([priority]) // ✅ Thêm index
+}
+
+
+// ============================================================
+// BÀI 3 — DANH BẠ LIÊN LẠC
+// Điểm gốc: 6/10
+// Lỗi: @@index trên array field bị lỗi, tên model "Directory" sai nghĩa,
+//       address nên optional
+// ============================================================
+
+type ContactAddress {
+  street   String
+  district String
+  city     String
+  country  String
+}
+
+model Contact { // ✅ Đổi từ "Directory" → đúng nghĩa "danh bạ"
+  id        String          @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  phones    String[]        // ✅ Số nhiều
+  emails    String[]        // ✅ Số nhiều
+  address   ContactAddress? // ✅ Optional — không phải ai cũng có địa chỉ
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  // ✅ Bỏ @@index([phone]) — không index được array field trong Prisma
+  @@index([name]) // ✅ Tìm kiếm theo tên thường gặp
+}
+
+
+// ============================================================
+// BÀI 4 — BLOG CÁ NHÂN
+// Điểm gốc: 8/10
+// Lỗi: thiếu field content, "tag" nên "tags", seo nên optional
+// ============================================================
+
+enum BlogStatus {
+  PUBLISHED
+  DRAFT
+}
+
+type BlogSEO {
+  metaTitle       String
+  metaDescription String? // ✅ Optional
+}
+
+model Author {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  name      String
+  blogs     Blog[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Blog {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  title     String
+  content   String     // ✅ Thêm field quan trọng nhất
+  slug      String     @unique
+  tags      String[]   // ✅ Đổi "tag" → "tags" (số nhiều)
+  status    BlogStatus @default(DRAFT)
+  seo       BlogSEO?   // ✅ Optional — không phải bài nào cũng có SEO ngay
+  authorId  String     @db.ObjectId
+  author    Author     @relation(fields: [authorId], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([status])   // ✅ Thêm index
+  @@index([authorId]) // ✅ Thêm index
+}
+
+
+// ============================================================
+// BÀI 5 — ĐÁNH GIÁ SẢN PHẨM
+// Điểm gốc: 7.5/10
+// Lỗi: typo timestamps, Product.name @unique sai nghiệp vụ, thiếu title trong Review
+// ============================================================
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  name      String
+  reviews   Review[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   // ✅ Bỏ @unique — có thể tồn tại SP tên giống nhau
+  price     Float
+  reviews   Review[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([price])
+  @@index([name]) // ✅ Index thường thay vì unique
+}
+
+model Review {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  title     String   // ✅ Thêm — đề bài yêu cầu
+  rating    Int      @default(3)
+  content   String
+  authorId  String   @db.ObjectId
+  author    User     @relation(fields: [authorId], references: [id])
+  productId String   @db.ObjectId
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now()) // ✅ Sửa typo "createAt"
+  updatedAt DateTime @updatedAt      // ✅ Sửa typo "updateAt"
+
+  @@unique([authorId, productId])    // ✅ Mỗi user chỉ review 1 lần / sản phẩm
+  @@index([rating, productId])
+  @@index([authorId])                // ✅ Thêm — query "tất cả review của 1 user"
+}
+
+
+// ============================================================
+// BÀI 6 — ĐẶT BÀN NHÀ HÀNG
+// Điểm gốc: 7/10
+// Lỗi: thiếu model Restaurant, index 4 fields vô nghĩa,
+//       table.number @unique sai phạm vi, thiếu ReservationStatus
+// ============================================================
+
+enum ReservationStatus {
+  PENDING    // Chờ xác nhận
+  CONFIRMED  // Đã xác nhận
+  CANCELLED  // Đã huỷ
+  COMPLETED  // Đã đến
+}
+
+model Restaurant {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  address   String
+  phone     String?
+  tables    Table[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Table {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  number       Int           // ✅ Bỏ @unique — unique trong phạm vi nhà hàng (xem @@unique bên dưới)
+  capacity     Int
+  restaurantId String        @db.ObjectId
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id])
+  reservations Reservation[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([restaurantId, number]) // ✅ Bàn số 1 có thể tồn tại ở nhiều nhà hàng
+  @@index([restaurantId])
+}
+
+model Reservation {
+  id                String            @id @default(auto()) @map("_id") @db.ObjectId
+  customerName      String
+  customerPhone     String
+  arrivalTime       DateTime
+  endTime           DateTime          // ✅ Thêm để kiểm tra overlap
+  numberOfCustomers Int
+  status            ReservationStatus @default(PENDING) // ✅ Thêm status
+  note              String?
+  tableId           String            @db.ObjectId
+  table             Table             @relation(fields: [tableId], references: [id])
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@unique([tableId, arrivalTime])
+  @@index([tableId])       // ✅ Tách thành 3 index nhỏ thay vì 1 index 4 fields
+  @@index([arrivalTime])
+  @@index([customerPhone])
+}
+
+
+// ============================================================
+// BÀI 7 — SÀN THƯƠNG MẠI ĐIỆN TỬ
+// Điểm gốc: 7.5/10
+// Lỗi: thiếu priceAtPurchase, typo "catogories", images nên String[],
+//       EOrderItem thiếu timestamps và productName
+// ============================================================
+
+enum EOrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+type EShippingAddress {
+  street   String
+  district String
+  city     String
+  country  String
+}
+
+model EUser {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  name      String
+  orders    EOrder[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EProduct {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  price       Float
+  images      String[]     // ✅ Đổi từ Json → String[] (mảng URL ảnh)
+  categoryIds String[]     @db.ObjectId
+  categories  ECategory[]  @relation(fields: [categoryIds], references: [id]) // ✅ Sửa typo "catogories"
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // ✅ Bỏ orderItems — ít khi cần query ngược từ Product → OrderItem
+  @@index([price])
+  @@index([name])
+}
+
+model ECategory {
+  id         String     @id @default(auto()) @map("_id") @db.ObjectId
+  name       String     @unique
+  productIds String[]   @db.ObjectId
+  products   EProduct[] @relation(fields: [productIds], references: [id])
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model EOrder {
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  status      EOrderStatus     @default(PENDING)
+  totalAmount Float
+  address     EShippingAddress // Embedded — snapshot địa chỉ lúc đặt hàng
+  items       EOrderItem[]
+  userId      String           @db.ObjectId
+  user        EUser            @relation(fields: [userId], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model EOrderItem {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  quantity        Int
+  priceAtPurchase Float    // ✅ Thêm — snapshot giá lúc mua (QUAN TRỌNG NHẤT)
+  productName     String   // ✅ Thêm — snapshot tên SP phòng trường hợp bị xoá
+  productId       String   @db.ObjectId
+  product         EProduct @relation(fields: [productId], references: [id])
+  orderId         String   @db.ObjectId
+  order           EOrder   @relation(fields: [orderId], references: [id])
+  createdAt       DateTime @default(now()) // ✅ Thêm timestamps
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+
+// ============================================================
+// BÀI 8 — ỨNG DỤNG CHAT NHÓM
+// Điểm gốc: 8.5/10
+// Lỗi: @default(now()) trong type không hợp lệ, thiếu messageType,
+//       thiếu groupImage, timestamp nên đổi thành createdAt
+// ============================================================
+
+enum ChatUserRole {
+  ADMIN
+  MEMBER
+}
+
+enum ChatMessageType {
+  TEXT  // ✅ Thêm enum
+  IMAGE
+  FILE
+}
+
+type ReadReceipt {
+  userId String   @db.ObjectId
+  readAt DateTime
+}
+
+type Participant {
+  userId     String       @db.ObjectId
+  role       ChatUserRole
+  timeJoined DateTime     // ✅ Bỏ @default(now()) — composite type không hỗ trợ
+}
+
+model ChatUser {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  email     String        @unique
+  name      String
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model ChatConversation {
+  id            String          @id @default(auto()) @map("_id") @db.ObjectId
+  isGroup       Boolean         @default(false)
+  groupName     String?
+  groupImage    String?         // ✅ Thêm — URL ảnh đại diện nhóm
+  participants  Participant[]
+  messages      ChatMessage[]
+  lastMessageAt DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([lastMessageAt])
+  @@index([isGroup]) // ✅ Thêm — filter conversation 1-1 vs nhóm
+}
+
+model ChatMessage {
+  id             String           @id @default(auto()) @map("_id") @db.ObjectId
+  content        String?          // ✅ Optional — message ảnh/file có thể không có text
+  messageType    ChatMessageType  @default(TEXT) // ✅ Thêm
+  fileUrl        String?          // ✅ Thêm — URL nếu là ảnh hoặc file
+  readBy         ReadReceipt[]
+  conversationId String           @db.ObjectId
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id])
+  senderId       String           @db.ObjectId
+  sender         ChatUser         @relation(fields: [senderId], references: [id])
+  createdAt      DateTime         @default(now()) // ✅ Đổi từ "timestamp" → nhất quán
+
+  @@index([conversationId, createdAt]) // ✅ Chuẩn cho chat pagination
+  @@index([senderId])
+}
